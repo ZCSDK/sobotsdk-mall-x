@@ -7,6 +7,7 @@ import android.view.View;
 
 import com.sobot.chat.SobotApi;
 import com.sobot.chat.SobotUIConfig;
+import com.sobot.chat.ZCSobotApi;
 import com.sobot.chat.api.model.SobotLocationModel;
 import com.sobot.chat.listener.SobotPlusMenuListener;
 import com.sobot.chat.utils.ResourceUtils;
@@ -34,6 +35,7 @@ public class App extends Application {
         SobotApi.initPlatformUnion(this, SobotSPUtil.getStringData(this, "sobot_platformunion_value", ""), "");
 //        initUi();
 //        customMenu();
+        ZCSobotApi.setShowDebug(true);
         initLocationModule();
         //设置 toolbar右边第一个按钮是否显示（更多）
         SobotUIConfig.sobot_title_right_menu1_display = true;
