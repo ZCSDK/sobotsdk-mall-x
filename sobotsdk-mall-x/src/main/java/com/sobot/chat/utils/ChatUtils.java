@@ -8,7 +8,6 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.provider.MediaStore;
@@ -137,6 +136,7 @@ public class ChatUtils {
             intent.setType("video/*");
         } else {
             intent = new Intent(Intent.ACTION_PICK, MediaStore.Video.Media.EXTERNAL_CONTENT_URI);
+            intent.setDataAndType(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video/*");
         }
         try {
             if (childFragment != null) {
@@ -175,7 +175,7 @@ public class ChatUtils {
         IOUtils.createFolder(cameraFile.getParentFile());
         Uri uri;
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Environment.isExternalStorageLegacy()) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                 ContentValues contentValues = new ContentValues(1);
                 contentValues.put(MediaStore.Images.Media.DATA, cameraFile.getAbsolutePath());
                 uri = act.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -248,7 +248,7 @@ public class ChatUtils {
     public static void sendPicLimitBySize(String filePath, String cid, String uid,
                                           Handler handler, Context context, final ListView lv_message,
                                           final SobotMsgAdapter messageAdapter, boolean isCamera) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Environment.isExternalStorageLegacy()) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             Bitmap bitmap = SobotBitmapUtil.compress(filePath, context, isCamera);
             if (bitmap != null) {
                 //判断图片是否有旋转，有的话旋转后在发送（手机出现选择图库相片发送后和原生的图片方向不一致）
@@ -400,7 +400,7 @@ public class ChatUtils {
         } else if (3 == type) { // 被加入黑名单
             return ResourceUtils.getResString(context, "sobot_outline_leverByManager");
         } else if (4 == type) { // 超时下线
-            String userOutWord = SharedPreferencesUtil.getStringData(context, ZhiChiConstant.SOBOT_USER_OUT_WORD, "");
+            String userOutWord = ZCSobotApi.getCurrentInfoSetting(context) != null ? ZCSobotApi.getCurrentInfoSetting(context).getUser_out_word() : "";
             if (!TextUtils.isEmpty(userOutWord)) {
                 return userOutWord;
             } else {
@@ -957,7 +957,7 @@ public class ChatUtils {
     }
 
     public static void sendPicByFilePath(Context context, String filePath, SobotSendFileListener listener, boolean isCamera) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Environment.isExternalStorageLegacy()) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             Bitmap bitmap = SobotBitmapUtil.compress(filePath, context, isCamera);
             if (bitmap != null) {
                 //判断图片是否有旋转，有的话旋转后在发送（手机出现选择图库相片发送后和原生的图片方向不一致）

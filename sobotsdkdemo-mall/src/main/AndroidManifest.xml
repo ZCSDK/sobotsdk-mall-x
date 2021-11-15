@@ -8,7 +8,7 @@
         android:icon="@drawable/sobot_demo_icon"
         android:label="@string/sobot_demo_app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light">
+        android:theme="@style/AppTheme">
         <activity
             android:name=".activity.SplashActivity"
             android:screenOrientation="portrait"

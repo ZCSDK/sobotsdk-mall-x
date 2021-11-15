@@ -7,10 +7,13 @@ import com.sobot.chat.SobotApi;
 import com.sobot.chat.api.enumtype.SobotChatTitleDisplayMode;
 import com.sobot.chat.api.model.ConsultingContent;
 import com.sobot.chat.api.model.Information;
+import com.sobot.chat.api.model.OrderCardContentModel;
 import com.sobot.chat.utils.ToastUtil;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -93,7 +96,7 @@ public class SobotUtils {
         } else {
             info.setArtificialIntelligence(false);
         }
-        info.setUseVoice(SobotSPUtil.getBooleanData(context, "sobot_isUseVoice", false));
+        info.setUseVoice(SobotSPUtil.getBooleanData(context, "sobot_isUseVoice", true));
         info.setShowSatisfaction(SobotSPUtil.getBooleanData(context, "sobot_isShowSatisfaction", false));
         if (!TextUtils.isEmpty(SobotSPUtil.getStringData(context, "sobot_rg_initModeType", ""))) {
             info.setInitModeType(Integer.parseInt(SobotSPUtil.getStringData(context, "sobot_rg_initModeType", "")));
@@ -160,6 +163,40 @@ public class SobotUtils {
         SobotApi.setFlowCompanyId(context,sobot_flowCompanyId_value);
         SobotApi.setFlowGroupId(context, sobot_flowGroupId_value);
         SobotApi.setEvaluationCompletedExit(context, sobot_evaluationCompletedExit);
+        ConsultingContent consultingContent = new ConsultingContent(); //咨询内容
+        consultingContent.setSobotGoodsTitle("乐视超级电视 S50 Air 全配版50英寸2D智能LED黑色（Letv S50 Air）"); //咨询内容标题
+        consultingContent.setSobotGoodsImgUrl("https://sobot-test.oss-cn-beijing.aliyuncs.com/console/66a522ea3ef944a98af45bac09220861/kb/image/d19dafc0ccd941f3841f8f9858910157.png"); //咨询内容图片 选填
+        consultingContent.setSobotGoodsFromUrl("https://www.baidu.com/admin/order/detail/302"); //发送内容
+        consultingContent.setSobotGoodsDescribe("乐视超级电视 S50 Air 全配版50英寸2D智能LED黑色（Letv S50 Air）乐视超级电视 S50 Air 全配版50英寸2D智能LED黑色（Letv S50 Air）");
+        consultingContent.setSobotGoodsLable("￥2150");
+        consultingContent.setAutoSend(true);
+        info.setContent(consultingContent); //可以设置为null
+
+
+        //----------订单卡片-----------
+        List<OrderCardContentModel.Goods> goodsList = new ArrayList<>();
+        goodsList.add(new OrderCardContentModel.Goods("苹果", "https://img.sobot.com/chatres/66a522ea3ef944a98af45bac09220861/msg/20190930/7d938872592345caa77eb261b4581509.png"));
+        goodsList.add(new OrderCardContentModel.Goods("苹果1111111", "https://img.sobot.com/chatres/66a522ea3ef944a98af45bac09220861/msg/20190930/7d938872592345caa77eb261b4581509.png"));
+        goodsList.add(new OrderCardContentModel.Goods("苹果2222", "https://img.sobot.com/chatres/66a522ea3ef944a98af45bac09220861/msg/20190930/7d938872592345caa77eb261b4581509.png"));
+        goodsList.add(new OrderCardContentModel.Goods("苹果33333333", "https://img.sobot.com/chatres/66a522ea3ef944a98af45bac09220861/msg/20190930/7d938872592345caa77eb261b4581509.png"));
+        OrderCardContentModel orderCardContent = new OrderCardContentModel();
+        //订单编号（必填）
+        orderCardContent.setOrderCode("zc32525235425");
+        //订单状态
+        orderCardContent.setOrderStatus(1);
+        //订单总金额
+        orderCardContent.setTotalFee(1234);
+        //订单商品总数
+        orderCardContent.setGoodsCount("4");
+        //订单链接
+        orderCardContent.setOrderUrl("https://item.jd.com/1765513297.html");
+        //订单创建时间
+        orderCardContent.setCreateTime(System.currentTimeMillis() + "");
+        orderCardContent.setAutoSend(true);
+        //订单商品集合
+        orderCardContent.setGoods(goodsList);
+        //订单卡片内容
+        info.setOrderGoodsInfo(orderCardContent);
         SobotApi.startSobotChat(context, info);
     }
 }
