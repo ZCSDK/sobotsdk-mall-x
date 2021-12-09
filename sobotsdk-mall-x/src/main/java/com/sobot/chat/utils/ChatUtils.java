@@ -1,7 +1,6 @@
 package com.sobot.chat.utils;
 
 import android.app.Activity;
-import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
@@ -173,27 +172,31 @@ public class ChatUtils {
         // 创建图片文件存放的位置
         File cameraFile = new File(path);
         IOUtils.createFolder(cameraFile.getParentFile());
-        Uri uri;
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                ContentValues contentValues = new ContentValues(1);
-                contentValues.put(MediaStore.Images.Media.DATA, cameraFile.getAbsolutePath());
-                uri = act.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        contentValues);
-            } else {
+        Uri uri = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                //如果在Android7.0以上,使用FileProvider获取Uri
                 uri = FileOpenHelper.getUri(act, cameraFile);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-
         } else {
             uri = Uri.fromFile(cameraFile);
         }
-        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE).putExtra(MediaStore
-                .EXTRA_OUTPUT, uri);
+        if (uri == null) {
+            return null;
+        }
+        try {
+            Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE).putExtra(MediaStore
+                    .EXTRA_OUTPUT, uri);
 //        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        if (childFragment != null) {
-            childFragment.startActivityForResult(intent, ZhiChiConstant.REQUEST_CODE_makePictureFromCamera);
-        } else {
-            act.startActivityForResult(intent, ZhiChiConstant.REQUEST_CODE_makePictureFromCamera);
+            if (childFragment != null) {
+                childFragment.startActivityForResult(intent, ZhiChiConstant.REQUEST_CODE_makePictureFromCamera);
+            } else {
+                act.startActivityForResult(intent, ZhiChiConstant.REQUEST_CODE_makePictureFromCamera);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         return cameraFile;
