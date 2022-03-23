@@ -28,9 +28,9 @@ import com.sobot.chat.MarkConfig;
 import com.sobot.chat.SobotApi;
 import com.sobot.chat.ZCSobotApi;
 import com.sobot.chat.activity.SobotQueryFromActivity;
-import com.sobot.chat.activity.WebViewActivity;
 import com.sobot.chat.adapter.SobotMsgAdapter;
 import com.sobot.chat.api.ResultCallBack;
+import com.sobot.chat.api.apiUtils.GsonUtil;
 import com.sobot.chat.api.apiUtils.SobotVerControl;
 import com.sobot.chat.api.enumtype.CustomerState;
 import com.sobot.chat.api.enumtype.SobotAutoSendMsgMode;
@@ -50,11 +50,10 @@ import com.sobot.chat.api.model.ZhiChiMessage;
 import com.sobot.chat.api.model.ZhiChiMessageBase;
 import com.sobot.chat.api.model.ZhiChiReplyAnswer;
 import com.sobot.chat.camera.util.FileUtil;
+import com.sobot.chat.core.HttpUtils;
 import com.sobot.chat.core.channel.Const;
 import com.sobot.chat.core.channel.LimitQueue;
 import com.sobot.chat.core.channel.SobotMsgManager;
-import com.sobot.chat.core.http.OkHttpUtils;
-import com.sobot.chat.core.http.callback.StringResultCallBack;
 import com.sobot.chat.fragment.SobotBaseFragment;
 import com.sobot.chat.notchlib.INotchScreen;
 import com.sobot.chat.notchlib.NotchScreenManager;
@@ -66,10 +65,10 @@ import com.sobot.chat.utils.MD5Util;
 import com.sobot.chat.utils.NotificationUtils;
 import com.sobot.chat.utils.ResourceUtils;
 import com.sobot.chat.utils.SharedPreferencesUtil;
-import com.sobot.chat.utils.SobotOption;
 import com.sobot.chat.utils.ToastUtil;
 import com.sobot.chat.utils.Util;
 import com.sobot.chat.utils.ZhiChiConstant;
+import com.sobot.network.http.callback.StringResultCallBack;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -205,10 +204,6 @@ public abstract class SobotChatBaseFragment extends SobotBaseFragment implements
             CommonUtils.sendLocalBroadcast(mAppContext, new Intent(Const.SOBOT_CHAT_CHECK_CONNCHANNEL));
         }
         NotificationUtils.cancleAllNotification(mAppContext);
-        //重新恢复连接
-        if (customerState == CustomerState.Online || customerState == CustomerState.Queuing) {
-            zhiChiApi.reconnectChannel();
-        }
 
         if (_sensorManager != null) {
             _sensorManager.registerListener(this, mProximiny, SensorManager.SENSOR_DELAY_NORMAL);
@@ -460,7 +455,8 @@ public abstract class SobotChatBaseFragment extends SobotBaseFragment implements
         params.put("tranFlag", info.getTranReceptionistFlag() + "");//是否必转该指定客服
         params.put("groupId", info.getGroupid());//指定技能组
         params.put("transferAction", info.getTransferAction());//指定溢出策略
-        if (SobotVerControl.isPlatformVer) {
+        String platformUnionCode = SharedPreferencesUtil.getStringData(getSobotActivity(), ZhiChiConstant.SOBOT_PLATFORM_UNIONCODE, "");
+        if (SobotVerControl.isPlatformVer && !TextUtils.isEmpty(platformUnionCode)) {
             String flowCompanyId = SharedPreferencesUtil.getStringData(getSobotActivity(), ZhiChiConstant.SOBOT_FLOW_COMPANYID, "");
             if (!TextUtils.isEmpty(flowCompanyId)) {
                 //是否可以溢出
@@ -546,22 +542,42 @@ public abstract class SobotChatBaseFragment extends SobotBaseFragment implements
                     return;
                 }
                 Boolean switchFlag = Boolean.valueOf(commonModelBase.getSwitchFlag()).booleanValue();
-                //如果switchFlag 为true，就会断开通道走轮训
+                //如果switchFlag 为true，就会断开通道走轮询
                 if (switchFlag) {
+                    Map<String, String> map = new HashMap<>();
+                    if (!CommonUtils.isServiceWork(getSobotActivity(), "com.sobot.chat.core.channel.SobotTCPServer")) {
+                        map.put("TCPServer 运行情况", "没运行，直接走fragment 界面的轮询");
+                    } else {
+                        map.put("TCPServer 运行情况", "在运行");
+                    }
+                    map.put("commonModelBase", commonModelBase.toString());
+                    LogUtils.i2Local("开启轮询 fragment ", "switchFlag=" + switchFlag + " " + map.toString());
                     //不管是什么方式（service 还是定时器里边的轮询），至少先执行一次轮询接口
                     pollingMsgForOne();
+                    try {
+                        //上传日志
+                        SobotMsgManager.getInstance(getSobotActivity()).getZhiChiApi().logCollect(getSobotActivity(), SharedPreferencesUtil.getAppKey(getSobotActivity(), ""), true);
+                    } catch (Exception e) {
+                    }
                     if (!CommonUtils.isServiceWork(getSobotActivity(), "com.sobot.chat.core.channel.SobotTCPServer")) {
+                        LogUtils.i2Local("开启轮询", "SobotTCPServer 没运行，直接走fragment 界面的轮询");
                         SobotMsgManager.getInstance(getSobotActivity()).getZhiChiApi().disconnChannel();
-                        //SobotTCPServer不存在，直接走定时器轮训
+                        //SobotTCPServer不存在，直接走定时器轮询
                         if (!inPolling) {
                             startPolling();
                         }
                     } else {
+                        LogUtils.i2Local("开启轮询", "SobotTCPServer 在运行");
                         // SobotTCPServer存在，通过广播方式告知要切换轮询
                         CommonUtils.sendLocalBroadcast(mAppContext, new Intent(Const.SOBOT_CHAT_CHECK_SWITCHFLAG));
                     }
                 } else {
-                    CommonUtils.sendLocalBroadcast(mAppContext, new Intent(Const.SOBOT_CHAT_CHECK_CONNCHANNEL));
+                    if (!CommonUtils.isServiceWork(getSobotActivity(), "com.sobot.chat.core.channel.SobotTCPServer")) {
+//                        LogUtils.i("----人工状态 SobotTCPServer 被杀死了");
+                        zhiChiApi.reconnectChannel();
+                    } else {
+                        CommonUtils.sendLocalBroadcast(mAppContext, new Intent(Const.SOBOT_CHAT_CHECK_CONNCHANNEL));
+                    }
                 }
                 if (commonModelBase.getSentisive() == 1) {
                     isAboveZero = true;
@@ -1164,7 +1180,6 @@ public abstract class SobotChatBaseFragment extends SobotBaseFragment implements
     /**
      * 检查是否有询前表单，这个方法在转人工时 会首先检查是否需要填写询前表单，
      * 如果有那么将会弹出询前表单填写界面，之后会调用转人工
-     *
      */
     protected void requestQueryFrom(final SobotConnCusParam param, final boolean isCloseInquiryFrom) {
         if (customerState == CustomerState.Queuing || isHasRequestQueryFrom) {
@@ -1452,11 +1467,18 @@ public abstract class SobotChatBaseFragment extends SobotBaseFragment implements
         puid = SharedPreferencesUtil.getStringData(getSobotActivity(), Const.SOBOT_PUID, "");
         getPollingHandler().removeCallbacks(pollingRun);
         getPollingHandler().postDelayed(pollingRun, 5 * 1000);
+        String platformUnionCode = SharedPreferencesUtil.getStringData(getSobotActivity(), ZhiChiConstant.SOBOT_PLATFORM_UNIONCODE, "");
+        if (SobotVerControl.isPlatformVer && !TextUtils.isEmpty(platformUnionCode)) {
+            LogUtils.i2Local("开启轮询", "SobotChatBaseFragment 轮询开始：参数" + "{platformUserId:" + uid + "}");
+        } else {
+            LogUtils.i2Local("开启轮询", "SobotChatBaseFragment 轮询开始：参数" + "{uid:" + uid + ",puid:" + puid + "}");
+        }
     }
 
     private String uid;
     private String puid;
     public boolean inPolling = false;//表示轮询接口是否在跑
+    public boolean isWritePollingLog = true;//轮询只把第一次结果写到日志里
 
     private Runnable pollingRun = new Runnable() {
         @Override
@@ -1467,27 +1489,38 @@ public abstract class SobotChatBaseFragment extends SobotBaseFragment implements
     };
 
     private void pollingMsg() {
-        if (SobotVerControl.isPlatformVer) {
+        String platformUnionCode = SharedPreferencesUtil.getStringData(getSobotActivity(), ZhiChiConstant.SOBOT_PLATFORM_UNIONCODE, "");
+        if (SobotVerControl.isPlatformVer && !TextUtils.isEmpty(platformUnionCode)) {
             pollingParams.put("platformUserId", uid);
         } else {
             pollingParams.put("uid", uid);
             pollingParams.put("puid", puid);
         }
         pollingParams.put("tnk", System.currentTimeMillis() + "");
-        String platformUnionCode = SharedPreferencesUtil.getStringData(getSobotActivity(), ZhiChiConstant.SOBOT_PLATFORM_UNIONCODE, "");
         zhiChiApi.pollingMsg(SobotChatBaseFragment.this, pollingParams, platformUnionCode, new StringResultCallBack<BaseCode>() {
 
             @Override
             public void onSuccess(BaseCode baseCode) {
-                LogUtils.i("fragment 轮训请求结果:" + baseCode.getData().toString());
+                if (isWritePollingLog) {
+                    LogUtils.i2Local("SobotChatBaseFragment 轮询结果", baseCode.toString());
+                    try {
+                        //上传日志
+                        SobotMsgManager.getInstance(getSobotActivity()).getZhiChiApi().logCollect(getSobotActivity(), SharedPreferencesUtil.getAppKey(getSobotActivity(), ""), true);
+                    } catch (Exception e) {
+                    }
+                }
+                isWritePollingLog = false;
+                LogUtils.i("fragment pollingMsg 轮询请求结果:" + baseCode.getData().toString());
                 getPollingHandler().removeCallbacks(pollingRun);
                 if (baseCode != null) {
                     if ("0".equals(baseCode.getCode()) && "210021".equals(baseCode.getData())) {
                         //{"code":0,"data":"210021","msg":"当前用户被验证为非法用户，不能接入客服中心"}
-                        //非法用户，停止轮训
+                        //非法用户，停止轮询
+                        LogUtils.i2Local("fragment 轮询结果异常", baseCode.toString() + " 非法用户，停止轮询");
                     } else if ("0".equals(baseCode.getCode()) && "200003".equals(baseCode.getData())) {
                         //{"code":0,"data":"200003","msg":"访客信息不存在"}
-                        //找不到用户，停止轮训
+                        //找不到用户，停止轮询
+                        LogUtils.i2Local("fragment 轮询结果异常", baseCode.toString() + " 找不到用户，停止轮询");
                     } else {
                         getPollingHandler().postDelayed(pollingRun, 5 * 1000);
                         if (baseCode.getData() != null) {
@@ -1502,34 +1535,42 @@ public abstract class SobotChatBaseFragment extends SobotBaseFragment implements
                 getPollingHandler().removeCallbacks(pollingRun);
                 getPollingHandler().postDelayed(pollingRun, 10 * 1000);
                 LogUtils.i("msg::::" + des);
+                LogUtils.i2Local("轮询接口失败", "SobotChatBaseFragment 轮询:" + "请求参数 " + pollingParams != null ? GsonUtil.map2Json(pollingParams) : "" + e.toString());
+                try {
+                    //上传日志
+                    SobotMsgManager.getInstance(getSobotActivity()).getZhiChiApi().logCollect(getSobotActivity(), SharedPreferencesUtil.getAppKey(getSobotActivity(), ""), true);
+                } catch (Exception exception) {
+                }
             }
         });
     }
 
-    //只请求一次轮训接口
-    private void pollingMsgForOne() {
+    //只请求一次轮询接口
+    public void pollingMsgForOne() {
         uid = SharedPreferencesUtil.getStringData(getSobotActivity(), Const.SOBOT_UID, "");
         puid = SharedPreferencesUtil.getStringData(getSobotActivity(), Const.SOBOT_PUID, "");
-        if (SobotVerControl.isPlatformVer) {
+        String platformUnionCode = SharedPreferencesUtil.getStringData(getSobotActivity(), ZhiChiConstant.SOBOT_PLATFORM_UNIONCODE, "");
+        if (SobotVerControl.isPlatformVer && !TextUtils.isEmpty(platformUnionCode)) {
             pollingParams.put("platformUserId", uid);
         } else {
             pollingParams.put("uid", uid);
             pollingParams.put("puid", puid);
         }
         pollingParams.put("tnk", System.currentTimeMillis() + "");
-        String platformUnionCode = SharedPreferencesUtil.getStringData(getSobotActivity(), ZhiChiConstant.SOBOT_PLATFORM_UNIONCODE, "");
+        LogUtils.i2Local("开启轮询", "SobotChatBaseFragment 至少只请求一次轮询接口 参数:" + pollingParams.toString());
         zhiChiApi.pollingMsg(SobotChatBaseFragment.this, pollingParams, platformUnionCode, new StringResultCallBack<BaseCode>() {
 
             @Override
             public void onSuccess(BaseCode baseCode) {
-                LogUtils.i("fragment 轮训请求结果:" + baseCode.getData().toString());
+                LogUtils.i2Local("SobotChatBaseFragment至少只请求一次轮询接口", " 轮询请求结果:" + baseCode.toString());
+                LogUtils.i("fragment pollingMsgForOne 轮询请求结果:" + baseCode.getData().toString());
                 if (baseCode != null) {
                     if ("0".equals(baseCode.getCode()) && "210021".equals(baseCode.getData())) {
                         //{"code":0,"data":"210021","msg":"当前用户被验证为非法用户，不能接入客服中心"}
-                        //非法用户，停止轮训
+                        //非法用户，停止轮询
                     } else if ("0".equals(baseCode.getCode()) && "200003".equals(baseCode.getData())) {
                         //{"code":0,"data":"200003","msg":"访客信息不存在"}
-                        //找不到用户，停止轮训
+                        //找不到用户，停止轮询
                     } else {
                         if (baseCode.getData() != null) {
                             responseAck(getSobotActivity(), baseCode.getData().toString());
@@ -1541,6 +1582,12 @@ public abstract class SobotChatBaseFragment extends SobotBaseFragment implements
             @Override
             public void onFailure(Exception e, String des) {
                 LogUtils.i("msg::::" + des);
+                LogUtils.i2Local("轮询接口失败", "请求参数 " + pollingParams != null ? GsonUtil.map2Json(pollingParams) : "" + e.toString());
+                try {
+                    //上传日志
+                    SobotMsgManager.getInstance(getSobotActivity()).getZhiChiApi().logCollect(getSobotActivity(), SharedPreferencesUtil.getAppKey(getSobotActivity(), ""), true);
+                } catch (Exception exception) {
+                }
             }
         });
     }
@@ -1609,7 +1656,7 @@ public abstract class SobotChatBaseFragment extends SobotBaseFragment implements
     @Override
     public void onDestroy() {
         stopPolling();
-        OkHttpUtils.getInstance().cancelTag(SobotChatBaseFragment.this);
+        HttpUtils.getInstance().cancelTag(SobotChatBaseFragment.this);
         super.onDestroy();
     }
 }
