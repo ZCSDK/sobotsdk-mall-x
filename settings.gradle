@@ -1,1 +1,1 @@
-include ':sobotsdkdemo-mall', ':sobotsdk-mall-x'
+include ':sobotsdkdemo', ':sobotsdk-mall-x'
