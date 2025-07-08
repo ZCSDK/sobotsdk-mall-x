@@ -14,7 +14,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Information info=new Information();
-        info.setApp_key("1c1da2c0aad047d7ba1d14ecd18ae4f6");
+        info.setApp_key("f7ad0c8bd0914edfb92ce7f6e0b24cac");
         ZCSobotApi.openZCChat(MainActivity.this,info);
     }
 }

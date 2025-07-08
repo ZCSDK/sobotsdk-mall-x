@@ -269,7 +269,7 @@
 
                 <com.sobot.chat.widget.image.SobotRCImageView
                     android:id="@+id/sobot_order_good_pic_h"
-                    android:layout_width="300dp"
+                    android:layout_width="match_parent"
                     android:layout_height="188dp"
                     android:scaleType="centerCrop"
                     android:src="@drawable/sobot_icon_consulting_default_pic"
